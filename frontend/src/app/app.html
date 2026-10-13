@@ -1,0 +1,519 @@
+<div class="app-container">
+  <!-- Top Navigation Header -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title-wrap">
+          <h1 class="brand-name">Sanjivani Sugar Factory</h1>
+          <span class="badge-enterprise">ERP v2.4</span>
+        </div>
+        <p class="brand-subtitle">Farmer Cane Supply & Payment Settlement System</p>
+      </div>
+    </div>
+
+    <!-- Database Connection Indicator & Header Actions -->
+    <div class="header-actions">
+      <div class="db-status-pill" [class.connected]="dbConnected()" [class.disconnected]="!dbConnected()">
+        <span class="status-dot"></span>
+        <div class="status-details">
+          <span class="status-label">
+            {{ dbConnected() ? 'MongoDB Connected' : 'Database Offline' }}
+          </span>
+          <span class="status-sub" *ngIf="health() as h">
+            {{ h.database }} • {{ h.farmersCount }} records
+          </span>
+          <span class="status-sub error-text" *ngIf="!dbConnected() && dbError() as err">
+            {{ err }}
+          </span>
+        </div>
+      </div>
+
+      <button class="btn btn-secondary btn-icon" (click)="refreshAll()" [disabled]="checkingHealth()" title="Refresh Data">
+        <svg class="spin-icon" [class.rotating]="checkingHealth()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+        </svg>
+        <span>Refresh</span>
+      </button>
+
+      <button class="btn btn-primary" (click)="openAddModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Register Farmer</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="main-content">
+    
+    <!-- Executive KPI Dashboard Cards -->
+    <section class="kpi-grid" *ngIf="dashboard() as d">
+      <!-- Total Farmers -->
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Registered Farmers</span>
+          <div class="kpi-icon-box green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value">{{ formatNumber(d.totalFarmers) }}</div>
+        <div class="kpi-footer">
+          <span class="badge-growth">Active Producers</span>
+          <span class="kpi-hint">Across 5 cane circles</span>
+        </div>
+      </div>
+
+      <!-- Total Sugarcane Tons -->
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Total Sugarcane Received</span>
+          <div class="kpi-icon-box amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+              <polyline points="2 17 12 22 22 17"></polyline>
+              <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value">{{ formatNumber(d.totalSugarcaneTons) }} <span class="unit">Tons</span></div>
+        <div class="kpi-footer">
+          <span class="badge-tonnage">Factory Milling</span>
+          <span class="kpi-hint">Avg {{ (d.totalFarmers ? (d.totalSugarcaneTons / d.totalFarmers).toFixed(1) : 0) }} T/farmer</span>
+        </div>
+      </div>
+
+      <!-- Amount Paid -->
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Amount Disbursed</span>
+          <div class="kpi-icon-box emerald">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="1" x2="12" y2="23"></line>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value amount-paid">{{ formatCurrency(d.totalAmountPaid) }}</div>
+        <div class="kpi-footer">
+          <span class="badge-paid">Paid via Direct Transfer</span>
+          <span class="kpi-hint">
+            {{ (((d.totalAmountPaid) / ((d.totalAmountPaid + d.totalPaymentPending) || 1)) * 100).toFixed(0) }}% Settled
+          </span>
+        </div>
+      </div>
+
+      <!-- Pending Payment -->
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Pending Cane Dues</span>
+          <div class="kpi-icon-box red">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value amount-pending">{{ formatCurrency(d.totalPaymentPending) }}</div>
+        <div class="kpi-footer">
+          <span class="badge-pending">Due Next Cycle</span>
+          <span class="kpi-hint">FRP Clearance queue</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Top Supply Villages Distribution Banner -->
+    <section class="village-summary-bar" *ngIf="dashboard()?.villageBreakdown as vb">
+      <div class="village-bar-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+        <span>Village Yield Distribution:</span>
+      </div>
+      <div class="village-tags-list">
+        <div 
+          class="village-tag-item" 
+          *ngFor="let v of vb" 
+          (click)="onVillageFilterChange(v.village)"
+          [class.active]="selectedVillage === v.village"
+        >
+          <span class="v-name">{{ v.village }}</span>
+          <span class="v-tons">{{ v.tons }} T</span>
+          <span class="v-count">({{ v.farmers }} farmers)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Sugar Factory Assistant Section -->
+    <section class="ai-section card-box">
+      <div class="ai-header">
+        <div class="ai-title-wrap">
+          <div class="ai-avatar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"></path>
+              <rect x="3" y="8" width="18" height="12" rx="4"></rect>
+              <line x1="8" y1="14" x2="8.01" y2="14"></line>
+              <line x1="16" y1="14" x2="16.01" y2="14"></line>
+            </svg>
+          </div>
+          <div>
+            <h2 class="ai-heading">Sanjivani Cane AI Assistant</h2>
+            <p class="ai-desc">Query MongoDB real-time database records in natural language</p>
+          </div>
+        </div>
+        <span class="badge-ai-model">Model: GPT-4.1 Mini • Live DB Hook</span>
+      </div>
+
+      <!-- Suggested Prompt Chips -->
+      <div class="ai-chips">
+        <span class="chip-label">Suggestions:</span>
+        <button 
+          type="button" 
+          class="chip-btn" 
+          *ngFor="let suggestion of aiSuggestions" 
+          (click)="askAiQuestion(suggestion)"
+          [disabled]="aiLoading()"
+        >
+          {{ suggestion }}
+        </button>
+      </div>
+
+      <!-- Question Input Bar -->
+      <form class="ai-input-form" (ngSubmit)="askAiQuestion()">
+        <div class="input-with-button">
+          <input 
+            type="text" 
+            [(ngModel)]="aiQuestion" 
+            name="aiQueryInput"
+            placeholder="Ask anything about cane supply, pending dues, or village performance..."
+            class="ai-input"
+            [disabled]="aiLoading()"
+          />
+          <button type="submit" class="btn btn-ai" [disabled]="aiLoading() || !aiQuestion.trim()">
+            <span *ngIf="!aiLoading()">Ask AI</span>
+            <span *ngIf="aiLoading()" class="loading-dots">Thinking...</span>
+          </button>
+          <button type="button" class="btn btn-ghost" *ngIf="aiAnswer() || aiError()" (click)="clearAi()">
+            Clear
+          </button>
+        </div>
+      </form>
+
+      <!-- AI Response Box -->
+      <div class="ai-response-container" *ngIf="aiAnswer() || aiError() || aiLoading()">
+        <div class="ai-loading-state" *ngIf="aiLoading()">
+          <div class="spinner"></div>
+          <span>Analyzing MongoDB records & generating intelligent insights...</span>
+        </div>
+
+        <div class="ai-error-box" *ngIf="!aiLoading() && aiError() as err">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span>{{ err }}</span>
+        </div>
+
+        <div class="ai-answer-card" *ngIf="!aiLoading() && aiAnswer() as ans">
+          <div class="answer-header">
+            <span class="ans-badge">AI Analysis</span>
+            <span class="ans-source">Direct from MongoDB collection "farmers"</span>
+          </div>
+          <div class="answer-content">
+            {{ ans }}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Farmers Management & Data Table Section -->
+    <section class="table-section card-box">
+      <!-- Section Controls: Search & Village Filter -->
+      <div class="table-controls">
+        <div class="table-title-wrap">
+          <h2 class="table-heading">Farmer Cane Records</h2>
+          <span class="table-count-badge">{{ totalFarmers() }} Farmers Registered</span>
+        </div>
+
+        <div class="filters-wrap">
+          <!-- Search Input -->
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input 
+              type="text" 
+              placeholder="Search farmer name..." 
+              [(ngModel)]="searchTerm" 
+              (ngModelChange)="onSearchChange()"
+              class="search-input"
+            />
+          </div>
+
+          <!-- Village Dropdown -->
+          <div class="select-box">
+            <select [ngModel]="selectedVillage" (ngModelChange)="onVillageFilterChange($event)" class="select-input">
+              <option value="ALL">All Villages ({{ villages().length }})</option>
+              <option *ngFor="let v of villages()" [value]="v">{{ v }}</option>
+            </select>
+          </div>
+
+          <!-- Reset Filter Button -->
+          <button class="btn btn-ghost" *ngIf="searchTerm || selectedVillage !== 'ALL'" (click)="resetFilters()">
+            Reset Filter
+          </button>
+        </div>
+      </div>
+
+      <!-- Farmers Table -->
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Farmer Name</th>
+              <th>Village</th>
+              <th>Cane Supplied</th>
+              <th>Total Value</th>
+              <th>Amount Paid</th>
+              <th>Pending Dues</th>
+              <th>Settlement Status</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Loading Row -->
+            <tr *ngIf="loadingFarmers()">
+              <td colspan="8" class="loading-cell">
+                <div class="spinner"></div>
+                <span>Loading farmer records from database...</span>
+              </td>
+            </tr>
+
+            <!-- Empty Row -->
+            <tr *ngIf="!loadingFarmers() && farmers().length === 0">
+              <td colspan="8" class="empty-cell">
+                <div class="empty-state">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  <p>No farmers match your search or filter.</p>
+                  <button class="btn btn-secondary btn-sm" (click)="resetFilters()">Show All Records</button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Data Rows -->
+            <tr *ngFor="let f of farmers()">
+              <td class="farmer-name-cell">
+                <div class="avatar">{{ f.name.substring(0, 1) }}</div>
+                <div class="farmer-info">
+                  <span class="farmer-name">{{ f.name }}</span>
+                  <span class="farmer-id" *ngIf="f._id">ID: {{ f._id.substring(f._id.length - 6) }}</span>
+                </div>
+              </td>
+              <td>
+                <span class="village-pill">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  {{ f.village }}
+                </span>
+              </td>
+              <td>
+                <span class="cane-tons">{{ f.sugarcaneTons }} <span class="unit-sm">T</span></span>
+              </td>
+              <td class="font-mono">
+                {{ formatCurrency((f.amountPaid || 0) + (f.paymentPending || 0)) }}
+              </td>
+              <td class="font-mono text-emerald">
+                {{ formatCurrency(f.amountPaid || 0) }}
+              </td>
+              <td class="font-mono" [class.text-amber]="(f.paymentPending || 0) > 0">
+                {{ formatCurrency(f.paymentPending || 0) }}
+              </td>
+              <td>
+                <div class="status-col">
+                  <span class="status-badge" [ngClass]="getPaymentStatus(f).class">
+                    {{ getPaymentStatus(f).label }}
+                  </span>
+                  <div class="progress-bar-bg" title="{{ getPaidPercentage(f) }}% settled">
+                    <div class="progress-bar-fill" [style.width.%]="getPaidPercentage(f)"></div>
+                  </div>
+                </div>
+              </td>
+              <td class="text-right actions-cell">
+                <button class="btn-action edit" (click)="openEditModal(f)" title="Edit Farmer">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
+                <button class="btn-action delete" (click)="promptDeleteFarmer(f)" title="Delete Farmer">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Add / Edit Farmer Modal -->
+  <div class="modal-overlay" *ngIf="showModal()" (click)="closeModal()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">{{ isEditMode() ? 'Edit Farmer Record' : 'Register New Farmer' }}</h3>
+        <button class="modal-close" (click)="closeModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="alert-error" *ngIf="formError">
+          {{ formError }}
+        </div>
+
+        <form (ngSubmit)="saveFarmer()" class="modal-form">
+          <div class="form-group">
+            <label class="form-label">Farmer Full Name *</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              placeholder="e.g. Ramesh Patil" 
+              [(ngModel)]="formName" 
+              name="formName" 
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Village / Circle *</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              placeholder="e.g. Kopargaon, Shirdi, Yeola" 
+              [(ngModel)]="formVillage" 
+              name="formVillage" 
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Sugarcane Delivered (Tons) *</label>
+            <input 
+              type="number" 
+              class="form-control" 
+              placeholder="e.g. 110" 
+              [(ngModel)]="formTons" 
+              name="formTons" 
+              min="0"
+              required
+            />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Amount Paid (₹)</label>
+              <input 
+                type="number" 
+                class="form-control" 
+                placeholder="e.g. 250000" 
+                [(ngModel)]="formPaid" 
+                name="formPaid" 
+                min="0"
+              />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Pending Dues (₹)</label>
+              <input 
+                type="number" 
+                class="form-control" 
+                placeholder="e.g. 50000" 
+                [(ngModel)]="formPending" 
+                name="formPending" 
+                min="0"
+              />
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" (click)="closeModal()" [disabled]="savingFarmer()">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary" [disabled]="savingFarmer()">
+              <span *ngIf="!savingFarmer()">{{ isEditMode() ? 'Save Changes' : 'Register Farmer' }}</span>
+              <span *ngIf="savingFarmer()">Saving to Database...</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-overlay" *ngIf="showDeleteModal()" (click)="closeDeleteModal()">
+    <div class="modal-card delete-card" (click)="$event.stopPropagation()">
+      <div class="delete-icon-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </div>
+      <h3 class="modal-title">Delete Farmer Record?</h3>
+      <p class="delete-desc" *ngIf="farmerToDelete() as f">
+        Are you sure you want to delete <strong>{{ f.name }}</strong> from village <strong>{{ f.village }}</strong>? This action will remove their record from MongoDB permanently.
+      </p>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeDeleteModal()" [disabled]="deletingFarmer()">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-danger" (click)="confirmDelete()" [disabled]="deletingFarmer()">
+          <span *ngIf="!deletingFarmer()">Yes, Delete Record</span>
+          <span *ngIf="deletingFarmer()">Deleting...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Toast Notification -->
+  <div class="toast-container" *ngIf="toastMessage() as msg">
+    <div class="toast-item" [ngClass]="toastType()">
+      <div class="toast-icon">
+        <svg *ngIf="toastType() === 'success'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <svg *ngIf="toastType() === 'error'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <svg *ngIf="toastType() === 'info'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+      </div>
+      <span class="toast-text">{{ msg }}</span>
+    </div>
+  </div>
+</div>
